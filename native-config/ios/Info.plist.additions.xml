@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Adicione estas entradas dentro do <dict> principal do seu ios/App/App/Info.plist
+  após rodar: npx cap add ios
+-->
+<additions>
+
+  <!-- Microfone (obrigatório para STT) -->
+  <key>NSMicrophoneUsageDescription</key>
+  <string>O Active Voice precisa do microfone para reconhecer seus comandos de voz.</string>
+
+  <!-- Reconhecimento de fala (obrigatório para SpeechRecognition) -->
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>O Active Voice usa reconhecimento de fala para entender seus pedidos.</string>
+
+  <!-- Notificações locais — o Capacitor registra automaticamente,
+       mas o valor abaixo evita rejeição na App Store Review -->
+  <key>UIBackgroundModes</key>
+  <array>
+    <string>fetch</string>
+    <string>remote-notification</string>
+  </array>
+
+</additions>

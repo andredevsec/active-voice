@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Adicione estas permissões dentro do <manifest> do seu
+  android/app/src/main/AndroidManifest.xml
+  após rodar: npx cap add android
+-->
+<additions>
+
+  <!-- Microfone (STT) -->
+  <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
+  <!-- Internet (Whisper/Groq API fallback) -->
+  <uses-permission android:name="android.permission.INTERNET"/>
+
+  <!-- Notificações locais (Android 13+) -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+  <!-- Alarmes exatos para lembretes de medicamentos -->
+  <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+  <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+
+  <!-- Manter CPU ativa para processar lembretes em background -->
+  <uses-permission android:name="android.permission.WAKE_LOCK"/>
+
+  <!-- Vibração no alerta de lembrete -->
+  <uses-permission android:name="android.permission.VIBRATE"/>
+
+  <!--
+    Dentro do <application> adicione também:
+    <receiver android:name="com.capacitorjs.plugins.localnotifications.LocalNotificationScheduleReceiver"
+              android:exported="false"/>
+  -->
+
+</additions>
