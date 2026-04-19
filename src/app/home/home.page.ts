@@ -5,8 +5,7 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  mic, micOutline, syncOutline, helpCircleOutline,
-  checkmarkCircleOutline, alertCircleOutline,
+  mic, micOutline, syncOutline, helpCircleOutline, checkmarkCircleOutline,
 } from 'ionicons/icons';
 
 import { DbService }        from '../services/data/db.service';
@@ -15,6 +14,7 @@ import { ProcessorService } from '../services/assistant/processor.service';
 import { IntentService, IntentResultado, INTENT_DESCONHECIDO } from '../services/assistant/intent.service';
 import { StateService, Estado } from '../services/assistant/state.service';
 import { TtsService }       from '../services/voice/tts.service';
+import { SttService }       from '../services/voice/stt.service';
 import { CallService }      from '../services/actions/call.service';
 import { ReminderService }  from '../services/actions/reminder.service';
 
@@ -38,23 +38,25 @@ export class HomePage implements OnInit, OnDestroy {
     private intentSvc: IntentService,
     private state:     StateService,
     private tts:       TtsService,
+    private stt:       SttService,
     private call:      CallService,
     private reminder:  ReminderService,
   ) {
-    addIcons({
-      mic, micOutline, syncOutline, helpCircleOutline,
-      checkmarkCircleOutline, alertCircleOutline,
-    });
+    addIcons({ mic, micOutline, syncOutline, helpCircleOutline, checkmarkCircleOutline });
   }
+
+  // ── Ciclo de vida ─────────────────────────────────────────────────────────
 
   async ngOnInit(): Promise<void> {
     this.sub = this.state.estado$.subscribe((e) => (this.estado = e));
     await this.db.initDB();
     await this.reminder.agendarTodosMedicamentos();
+    this.tts.falar('Active Voice pronto. Toque no microfone para falar.');
   }
 
   ngOnDestroy(): void {
     this.sub.unsubscribe();
+    this.tts.parar();
   }
 
   // ── Template helpers ──────────────────────────────────────────────────────
@@ -73,9 +75,9 @@ export class HomePage implements OnInit, OnDestroy {
   get estadoLabel(): string {
     const mapa: Record<Estado, string> = {
       idle:        'Toque para falar',
-      ouvindo:     'Ouvindo...',
+      ouvindo:     'Ouvindo... (toque para cancelar)',
       processando: 'Processando...',
-      confirmando: 'Confirmar?',
+      confirmando: 'Confirmar? (ou fale sim / não)',
       executando:  'Executando...',
     };
     return mapa[this.estado];
@@ -89,8 +91,17 @@ export class HomePage implements OnInit, OnDestroy {
 
   async aoTocarMic(): Promise<void> {
     if (this.micDesabilitado) return;
-    if (this.estado === 'confirmando') { this.negar(); return; }
-    await this.iniciarEscuta();
+    switch (this.estado) {
+      case 'idle':
+        await this.iniciarEscuta();
+        break;
+      case 'ouvindo':
+        await this.cancelarEscuta();
+        break;
+      case 'confirmando':
+        await this.escutarConfirmacaoVoz();
+        break;
+    }
   }
 
   async confirmar(): Promise<void> {
@@ -115,38 +126,71 @@ export class HomePage implements OnInit, OnDestroy {
       this.textoEntendido = resultado.textoOriginal;
 
       const intent = this.intentSvc.detectar(resultado.textoNormalizado);
-      await this.tratarIntent(intent);
-    } catch {
+      await this.tratarIntent(intent, resultado.confianca);
+    } catch (e) {
       this.state.erro();
-      this.tts.falar('Não entendi. Por favor, tente novamente.');
+      this.falarErro(e);
     }
   }
 
-  private async tratarIntent(intent: IntentResultado): Promise<void> {
+  private async cancelarEscuta(): Promise<void> {
+    await this.stt.parar();
+    this.state.voltar();
+    this.tts.falar('Escuta cancelada.');
+  }
+
+  /**
+   * Captura rápida de voz para confirmar/negar sem passar pelo fluxo completo.
+   * Mantém o estado confirmando se não entender a resposta.
+   */
+  private async escutarConfirmacaoVoz(): Promise<void> {
+    try {
+      const resultado = await this.stt.ouvir();
+      const normalizado = this.processor.normalizar(resultado.texto);
+      const intent = this.intentSvc.detectar(normalizado);
+
+      if (intent.intencao === 'confirmar') {
+        await this.confirmar();
+      } else if (intent.intencao === 'negar') {
+        this.negar();
+      }
+      // Se não entender, mantém estado confirmando — usuário usa os botões
+    } catch {
+      // Falha silenciosa: aguarda interação pelos botões
+    }
+  }
+
+  // ── Tratamento de intenções ───────────────────────────────────────────────
+
+  private async tratarIntent(intent: IntentResultado, confianca: number): Promise<void> {
+    if (confianca < 0.5) {
+      this.tts.falar('Não consegui entender bem. Pode falar de novo?');
+      this.state.voltar();
+      return;
+    }
+
     switch (intent.intencao) {
 
       case 'ligar.cuidador':
-        await this.pedirConfirmacao(
-          intent,
-          'Deseja ligar para o cuidador?',
-          async () => {
+        this.pedirConfirmacao(intent, 'Deseja ligar para o cuidador?', async () => {
+          try {
             await this.call.ligar('cuidador');
             this.tts.falar('Ligando para o cuidador.');
-          },
-        );
+          } catch {
+            this.tts.falar('Nenhum cuidador cadastrado. Ligando para o SAMU.');
+            setTimeout(() => this.call.ligarEmergencia('samu'), 2500);
+          }
+        });
         break;
 
       case 'ligar.emergencia': {
         const servico = (intent.entidades['servico'] ?? 'samu') as 'samu' | 'bombeiros' | 'policia';
-        const nomes = { samu: 'SAMU', bombeiros: 'Bombeiros', policia: 'Polícia' };
-        await this.pedirConfirmacao(
-          intent,
-          `Ligar para o ${nomes[servico]}?`,
-          async () => {
-            this.call.ligarEmergencia(servico);
-            this.tts.falar(`Ligando para o ${nomes[servico]}.`);
-          },
-        );
+        const nomes: Record<string, string> = { samu: 'SAMU', bombeiros: 'Bombeiros', policia: 'Polícia' };
+        const nome = nomes[servico] ?? 'SAMU';
+        this.pedirConfirmacao(intent, `Ligar para o ${nome}?`, async () => {
+          this.call.ligarEmergencia(servico);
+          this.tts.falar(`Ligando para o ${nome}.`);
+        });
         break;
       }
 
@@ -156,33 +200,46 @@ export class HomePage implements OnInit, OnDestroy {
         break;
 
       case 'reminder.criar':
-        await this.pedirConfirmacao(
-          intent,
-          'Devo agendar um lembrete de medicamento?',
-          async () => {
-            await this.reminder.agendarTodosMedicamentos();
-            this.tts.falar('Lembretes de medicamentos agendados.');
-          },
-        );
+        this.pedirConfirmacao(intent, 'Devo agendar lembretes para os seus medicamentos?', async () => {
+          await this.reminder.agendarTodosMedicamentos();
+          this.tts.falar('Lembretes de medicamentos agendados com sucesso.');
+        });
         break;
 
-      case 'reminder.listar':
-        this.tts.falar('Seus lembretes estão configurados para os horários dos seus medicamentos.');
+      case 'reminder.listar': {
+        const meds = await this.db.getMedicamentos(true);
+        if (meds.length === 0) {
+          this.tts.falar('Você não tem medicamentos cadastrados.');
+        } else {
+          const lista = meds.map((m) => `${m.nome} às ${m.horarios.join(' e ')}`).join('. ');
+          this.tts.falar(`Seus lembretes de medicamentos: ${lista}.`);
+        }
         this.state.voltar();
         break;
+      }
 
       case 'confirmar':
-        await this.state.confirmar();
+        if (this.state.contextoConfirmacao) {
+          await this.confirmar();
+        } else {
+          this.tts.falar('Não há nada pendente para confirmar.');
+          this.state.voltar();
+        }
         break;
 
       case 'negar':
-        this.negar();
+        if (this.state.contextoConfirmacao) {
+          this.negar();
+        } else {
+          this.state.voltar();
+        }
         break;
 
       case 'ajuda':
         this.tts.falar(
-          'Você pode dizer: ligar para o cuidador, me sinto mal, hora do remédio, ' +
-          'me lembra às oito horas, ou aumentar volume.',
+          'Você pode dizer: ligar para o cuidador, estou passando mal, ' +
+          'hora do remédio, quais meus remédios, ' +
+          'ou fala mais alto para aumentar o volume.',
         );
         this.state.voltar();
         break;
@@ -197,10 +254,12 @@ export class HomePage implements OnInit, OnDestroy {
 
       case INTENT_DESCONHECIDO:
       default:
-        this.tts.falar('Não entendi o comando. Pode repetir?');
+        this.tts.falar('Não reconheci esse comando. Diga ajuda para ouvir o que posso fazer.');
         this.state.voltar();
     }
   }
+
+  // ── Helpers privados ──────────────────────────────────────────────────────
 
   private pedirConfirmacao(
     intent: IntentResultado,
@@ -236,5 +295,23 @@ export class HomePage implements OnInit, OnDestroy {
     this.storage.savePreferencias({ ttsVolume: novoVolume });
     this.tts.falar('Volume ajustado.');
     this.state.voltar();
+  }
+
+  private falarErro(e: unknown): void {
+    if (e instanceof Error) {
+      if (e.name === 'SttIndisponivelError') {
+        this.tts.falar('Permissão de microfone negada. Verifique as configurações do aplicativo.');
+        return;
+      }
+      if (e.name === 'WhisperApiError') {
+        this.tts.falar('Sem conexão com a internet. Tente novamente mais tarde.');
+        return;
+      }
+      if (e.name === 'WhisperSemAudioError') {
+        this.tts.falar('Nenhum áudio foi capturado. Tente falar mais alto e mais perto do microfone.');
+        return;
+      }
+    }
+    this.tts.falar('Ocorreu um erro inesperado. Por favor, tente novamente.');
   }
 }
