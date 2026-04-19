@@ -1,20 +1,49 @@
-<ion-header [translucent]="true">
-  <ion-toolbar>
-    <ion-title>
-      Blank
-    </ion-title>
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>Active Voice</ion-title>
   </ion-toolbar>
 </ion-header>
 
-<ion-content [fullscreen]="true">
-  <ion-header collapse="condense">
-    <ion-toolbar>
-      <ion-title size="large">Blank</ion-title>
-    </ion-toolbar>
-  </ion-header>
+<ion-content [fullscreen]="true" class="av-content">
 
-  <div id="container">
-    <strong>Ready to create an app?</strong>
-    <p>Start with Ionic <a target="_blank" rel="noopener noreferrer" href="https://ionicframework.com/docs/components">UI Components</a></p>
+  <!-- Badge de estado -->
+  <div class="av-estado-wrap">
+    <span class="av-badge" [class]="'av-badge--' + estado">
+      {{ estadoLabel }}
+    </span>
   </div>
+
+  <!-- Texto reconhecido -->
+  <div class="av-texto-wrap">
+    @if (textoEntendido) {
+      <p class="av-texto">"{{ textoEntendido }}"</p>
+    } @else {
+      <p class="av-texto av-texto--dica">Toque no microfone e fale um comando</p>
+    }
+  </div>
+
+  <!-- Botão microfone -->
+  <div class="av-mic-wrap">
+    <button
+      class="av-mic"
+      [class]="'av-mic--' + estado"
+      [disabled]="micDesabilitado"
+      (click)="aoTocarMic()"
+      aria-label="Microfone"
+    >
+      <ion-icon [name]="micIcone"></ion-icon>
+    </button>
+  </div>
+
+  <!-- Confirmação -->
+  @if (estado === 'confirmando') {
+    <div class="av-confirmacao">
+      <p class="av-confirm-msg">{{ mensagemConfirmacao }}</p>
+      <div class="av-confirm-btns">
+        <button class="av-btn av-btn--sim" (click)="confirmar()">Sim</button>
+        <button class="av-btn av-btn--nao" (click)="negar()">Não</button>
+      </div>
+    </div>
+  }
+
 </ion-content>

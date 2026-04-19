@@ -83,8 +83,8 @@ export class ReminderService {
   }
 
   private async cancelarTodos(medicamentos: Medicamento[]): Promise<void> {
-    const ids = medicamentos.flatMap((med) =>
-      med.horarios.map((_, idx) => ({ id: BASE_ID * med.id + idx })),
+    const ids = medicamentos.flatMap((med: Medicamento) =>
+      med.horarios.map((_: string, idx: number) => ({ id: BASE_ID * med.id + idx })),
     );
     if (ids.length > 0) {
       await LocalNotifications.cancel({ notifications: ids });

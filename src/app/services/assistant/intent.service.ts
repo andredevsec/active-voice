@@ -40,8 +40,10 @@ const INTENCOES: Record<string, IntentConfig> = {
     ],
     sinonimos: ['socorro', 'emergencia', 'me sinto mal', 'preciso medico'],
     extrairEntidades: (texto) => {
-      const servico = /\b(samu|bombeiro|policia|ambulancia)\b/.exec(texto);
-      return servico ? { servico: servico[1] } : {};
+      const match = /\b(samu|bombeiro|policia|ambulancia)\b/.exec(texto);
+      const r: Record<string, string> = {};
+      if (match) r['servico'] = match[1];
+      return r;
     },
   },
 

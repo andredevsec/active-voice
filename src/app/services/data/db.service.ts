@@ -164,7 +164,8 @@ export class DbService {
       ? 'SELECT * FROM medicamentos WHERE ativo = 1 ORDER BY nome ASC;'
       : 'SELECT * FROM medicamentos ORDER BY nome ASC;';
     const result = await db.query(sql);
-    return ((result.values ?? []) as Omit<Medicamento, 'horarios'> & { horarios: string }[]).map(
+    type RawMed = Omit<Medicamento, 'horarios'> & { horarios: string };
+    return ((result.values ?? []) as RawMed[]).map(
       (row) => ({ ...row, horarios: JSON.parse(row.horarios) as string[] }),
     );
   }
