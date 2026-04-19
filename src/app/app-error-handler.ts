@@ -10,7 +10,7 @@ export class AppErrorHandler implements ErrorHandler {
 
     // Erros de chunk lazy-load (rede) — orienta o usuário a reabrir o app
     if (error instanceof Error && error.message.includes('Loading chunk')) {
-      this.tts.falar('Falha ao carregar o aplicativo. Verifique sua conexão e reabra o app.');
+      this.tts.falar('Falha ao carregar o aplicativo. Verifique sua conexão e reabra o app.').catch(() => {});
       return;
     }
 
@@ -28,6 +28,6 @@ export class AppErrorHandler implements ErrorHandler {
 
     if (mensagensConhecidas.includes(nomeErro)) return; // já tratado na camada de voz
 
-    this.tts.falar('O aplicativo encontrou um problema. Por favor, feche e abra novamente.');
+    this.tts.falar('O aplicativo encontrou um problema. Por favor, feche e abra novamente.').catch(() => {});
   }
 }

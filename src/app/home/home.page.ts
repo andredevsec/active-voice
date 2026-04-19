@@ -51,7 +51,7 @@ export class HomePage implements OnInit, OnDestroy {
     this.sub = this.state.estado$.subscribe((e) => (this.estado = e));
     await this.db.initDB();
     await this.reminder.agendarTodosMedicamentos();
-    this.tts.falar('Active Voice pronto. Toque no microfone para falar.');
+    await this.tts.falar('Active Voice pronto. Toque no microfone para falar.');
   }
 
   ngOnDestroy(): void {
@@ -108,16 +108,16 @@ export class HomePage implements OnInit, OnDestroy {
     await this.state.confirmar();
   }
 
-  negar(): void {
+  async negar(): Promise<void> {
     this.state.negar();
-    this.tts.falar('Cancelado.');
+    await this.tts.falar('Cancelado.');
   }
 
   // ── Fluxo principal ───────────────────────────────────────────────────────
 
   private async iniciarEscuta(): Promise<void> {
     this.state.iniciarEscuta();
-    this.tts.parar();
+    await this.tts.parar();
     this.textoEntendido = '';
 
     try {
@@ -129,14 +129,14 @@ export class HomePage implements OnInit, OnDestroy {
       await this.tratarIntent(intent, resultado.confianca);
     } catch (e) {
       this.state.erro();
-      this.falarErro(e);
+      await this.falarErro(e);
     }
   }
 
   private async cancelarEscuta(): Promise<void> {
     await this.stt.parar();
     this.state.voltar();
-    this.tts.falar('Escuta cancelada.');
+    await this.tts.falar('Escuta cancelada.');
   }
 
   /**
@@ -164,20 +164,39 @@ export class HomePage implements OnInit, OnDestroy {
 
   private async tratarIntent(intent: IntentResultado, confianca: number): Promise<void> {
     if (confianca < 0.5) {
-      this.tts.falar('Não consegui entender bem. Pode falar de novo?');
+      await this.tts.falar('Não consegui entender bem. Pode falar de novo?');
       this.state.voltar();
       return;
     }
 
     switch (intent.intencao) {
 
+      case 'saudacao': {
+        const hora = new Date().getHours();
+        const periodo = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+        await this.tts.falar(`${periodo}! Estou aqui para ajudar. O que você precisa?`);
+        this.state.voltar();
+        break;
+      }
+
+      case 'status': {
+        const agora = new Date();
+        const horas = agora.getHours().toString().padStart(2, '0');
+        const mins  = agora.getMinutes().toString().padStart(2, '0');
+        const dias  = ['domingo','segunda','terça','quarta','quinta','sexta','sábado'];
+        const dia   = dias[agora.getDay()];
+        await this.tts.falar(`São ${horas} e ${mins} de ${dia}.`);
+        this.state.voltar();
+        break;
+      }
+
       case 'ligar.cuidador':
         this.pedirConfirmacao(intent, 'Deseja ligar para o cuidador?', async () => {
           try {
             await this.call.ligar('cuidador');
-            this.tts.falar('Ligando para o cuidador.');
+            await this.tts.falar('Ligando para o cuidador.');
           } catch {
-            this.tts.falar('Nenhum cuidador cadastrado. Ligando para o SAMU.');
+            await this.tts.falar('Nenhum cuidador cadastrado. Ligando para o SAMU.');
             setTimeout(() => this.call.ligarEmergencia('samu'), 2500);
           }
         });
@@ -189,7 +208,7 @@ export class HomePage implements OnInit, OnDestroy {
         const nome = nomes[servico] ?? 'SAMU';
         this.pedirConfirmacao(intent, `Ligar para o ${nome}?`, async () => {
           this.call.ligarEmergencia(servico);
-          this.tts.falar(`Ligando para o ${nome}.`);
+          await this.tts.falar(`Ligando para o ${nome}.`);
         });
         break;
       }
@@ -202,17 +221,17 @@ export class HomePage implements OnInit, OnDestroy {
       case 'reminder.criar':
         this.pedirConfirmacao(intent, 'Devo agendar lembretes para os seus medicamentos?', async () => {
           await this.reminder.agendarTodosMedicamentos();
-          this.tts.falar('Lembretes de medicamentos agendados com sucesso.');
+          await this.tts.falar('Lembretes de medicamentos agendados com sucesso.');
         });
         break;
 
       case 'reminder.listar': {
         const meds = await this.db.getMedicamentos(true);
         if (meds.length === 0) {
-          this.tts.falar('Você não tem medicamentos cadastrados.');
+          await this.tts.falar('Você não tem medicamentos cadastrados.');
         } else {
           const lista = meds.map((m) => `${m.nome} às ${m.horarios.join(' e ')}`).join('. ');
-          this.tts.falar(`Seus lembretes de medicamentos: ${lista}.`);
+          await this.tts.falar(`Seus lembretes de medicamentos: ${lista}.`);
         }
         this.state.voltar();
         break;
@@ -222,39 +241,39 @@ export class HomePage implements OnInit, OnDestroy {
         if (this.state.contextoConfirmacao) {
           await this.confirmar();
         } else {
-          this.tts.falar('Não há nada pendente para confirmar.');
+          await this.tts.falar('Não há nada pendente para confirmar.');
           this.state.voltar();
         }
         break;
 
       case 'negar':
         if (this.state.contextoConfirmacao) {
-          this.negar();
+          await this.negar();
         } else {
           this.state.voltar();
         }
         break;
 
       case 'ajuda':
-        this.tts.falar(
-          'Você pode dizer: ligar para o cuidador, estou passando mal, ' +
-          'hora do remédio, quais meus remédios, ' +
+        await this.tts.falar(
+          'Você pode dizer: bom dia, ligar para o cuidador, estou passando mal, ' +
+          'hora do remédio, criar lembrete, que horas são, ' +
           'ou fala mais alto para aumentar o volume.',
         );
         this.state.voltar();
         break;
 
       case 'volume.aumentar':
-        this.ajustarVolume(0.15);
+        await this.ajustarVolume(0.15);
         break;
 
       case 'volume.diminuir':
-        this.ajustarVolume(-0.15);
+        await this.ajustarVolume(-0.15);
         break;
 
       case INTENT_DESCONHECIDO:
       default:
-        this.tts.falar('Não reconheci esse comando. Diga ajuda para ouvir o que posso fazer.');
+        await this.tts.falar('Não reconheci esse comando. Diga ajuda para ouvir o que posso fazer.');
         this.state.voltar();
     }
   }
@@ -271,33 +290,33 @@ export class HomePage implements OnInit, OnDestroy {
       intent,
       mensagem,
       aoConfirmar,
-      aoNegar: () => this.tts.falar('Cancelado.'),
+      aoNegar: () => { this.tts.falar('Cancelado.').catch(() => {}); },
     });
-    this.tts.falar(mensagem);
+    this.tts.falar(mensagem).catch(() => {});
   }
 
   private async falarMedicamentos(): Promise<void> {
     const medicamentos = await this.db.getMedicamentos(true);
     if (medicamentos.length === 0) {
-      this.tts.falar('Nenhum medicamento cadastrado.');
+      await this.tts.falar('Nenhum medicamento cadastrado.');
     } else {
       const lista = medicamentos
         .map((m) => `${m.nome} às ${m.horarios.join(' e ')}`)
         .join('. ');
-      this.tts.falar(`Seus medicamentos: ${lista}.`);
+      await this.tts.falar(`Seus medicamentos: ${lista}.`);
     }
     this.state.voltar();
   }
 
-  private ajustarVolume(delta: number): void {
+  private async ajustarVolume(delta: number): Promise<void> {
     const prefs = this.storage.getPreferencias();
     const novoVolume = Math.min(1, Math.max(0, prefs.ttsVolume + delta));
     this.storage.savePreferencias({ ttsVolume: novoVolume });
-    this.tts.falar('Volume ajustado.');
+    await this.tts.falar('Volume ajustado.');
     this.state.voltar();
   }
 
-  private falarErro(e: unknown): void {
+  private async falarErro(e: unknown): Promise<void> {
     if (!(e instanceof Error)) {
       this.tts.falar('Ocorreu um erro inesperado. Por favor, tente novamente.');
       return;
@@ -319,6 +338,6 @@ export class HomePage implements OnInit, OnDestroy {
     };
 
     const mensagem = mensagens[e.name];
-    this.tts.falar(mensagem ?? 'Ocorreu um erro inesperado. Por favor, tente novamente.');
+    await this.tts.falar(mensagem ?? 'Ocorreu um erro inesperado. Por favor, tente novamente.');
   }
 }

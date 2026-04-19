@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npx ng *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(git branch *)",
+      "Bash(gh repo *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(adb devices *)",
+      "Bash(npx cap *)",
+      "Bash(cmd /c \"gradlew.bat assembleDebug\")",
+      "Bash(./gradlew assembleDebug)",
+      "Bash(java -version)",
+      "Bash(where java *)",
+      "Bash(java -version *)",
+      "Read(//c/Program Files/Android/Android Studio/**)",
+      "Bash(C:/Program Files/Android/Android Studio/jbr/bin/java *)",
+      "Bash(JAVA_HOME=\"C:/Program Files/Android/Android Studio/jbr\" ./gradlew assembleDebug)",
+      "Bash(adb *)"
+    ]
+  }
+}

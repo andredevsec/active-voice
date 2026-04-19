@@ -97,6 +97,20 @@ const INTENCOES: Record<string, IntentConfig> = {
     sinonimos: ['meus lembretes', 'listar lembretes', 'o que tenho hoje'],
   },
 
+  'saudacao': {
+    padroes: [
+      /^\s*(oi|ola|olá|bom dia|boa tarde|boa noite|e ai|e aí|tudo bem|tudo bom|como vai|ola tudo)\s*[!?.]?\s*$/,
+    ],
+    sinonimos: ['oi', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'tudo bem'],
+  },
+
+  'status': {
+    padroes: [
+      /\b(que horas|que dia|hoje e|que dia e hoje)\b/,
+    ],
+    sinonimos: ['que horas sao', 'que dia e hoje'],
+  },
+
   'confirmar': {
     padroes: [
       /^\s*(sim|s|pode|ok|okay|isso|confirma|certo|claro|com certeza|correto|vai|pode ser)\s*$/,

@@ -1,57 +1,49 @@
 import { Injectable } from '@angular/core';
+import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { StorageService } from '../data/storage.service';
 
 @Injectable({ providedIn: 'root' })
 export class TtsService {
-  private synth = window.speechSynthesis;
-  private vozPtBR: SpeechSynthesisVoice | null = null;
+  private falando_ = false;
 
-  constructor(private storage: StorageService) {
-    this.carregarVoz();
-    // iOS/Android carregam vozes de forma assíncrona
-    if (this.synth.onvoiceschanged !== undefined) {
-      this.synth.onvoiceschanged = () => this.carregarVoz();
+  constructor(private storage: StorageService) {}
+
+  async falar(texto: string): Promise<void> {
+    if (!texto.trim()) return;
+    await this.parar();
+
+    const prefs = this.storage.getPreferencias();
+    this.falando_ = true;
+
+    try {
+      await TextToSpeech.speak({
+        text:     texto,
+        lang:     prefs.idioma,
+        rate:     prefs.ttsVelocidade,
+        pitch:    prefs.ttsPitch,
+        volume:   prefs.ttsVolume,
+        category: 'ambient',
+      });
+    } finally {
+      this.falando_ = false;
     }
   }
 
-  private carregarVoz(): void {
-    const vozes = this.synth.getVoices();
-    this.vozPtBR =
-      vozes.find((v) => v.lang === 'pt-BR') ??
-      vozes.find((v) => v.lang.startsWith('pt')) ??
-      null;
-  }
-
-  falar(texto: string): void {
-    if (!texto.trim()) return;
-    this.parar();
-
-    const prefs = this.storage.getPreferencias();
-    const utterance = new SpeechSynthesisUtterance(texto);
-
-    utterance.lang = prefs.idioma;
-    utterance.rate = prefs.ttsVelocidade;
-    utterance.volume = prefs.ttsVolume;
-    utterance.pitch = prefs.ttsPitch;
-
-    if (this.vozPtBR) utterance.voice = this.vozPtBR;
-
-    this.synth.speak(utterance);
-  }
-
-  parar(): void {
-    if (this.synth.speaking) this.synth.cancel();
-  }
-
-  pausar(): void {
-    if (this.synth.speaking) this.synth.pause();
-  }
-
-  retomar(): void {
-    if (this.synth.paused) this.synth.resume();
+  async parar(): Promise<void> {
+    try {
+      await TextToSpeech.stop();
+    } catch {
+      // ignora se não havia fala ativa
+    }
+    this.falando_ = false;
   }
 
   get falando(): boolean {
-    return this.synth.speaking;
+    return this.falando_;
+  }
+
+  // Mantém compatibilidade com chamadas síncronas (fire-and-forget)
+  falarSync(texto: string): void {
+    this.falar(texto).catch(() => {});
   }
 }
