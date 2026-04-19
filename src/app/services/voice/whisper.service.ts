@@ -30,6 +30,20 @@ export class WhisperApiError extends Error {
   }
 }
 
+export class WhisperSemInternetError extends Error {
+  constructor() {
+    super('Sem conexão com a internet para usar o Whisper.');
+    this.name = 'WhisperSemInternetError';
+  }
+}
+
+export class WhisperTimeoutError extends Error {
+  constructor() {
+    super('Tempo esgotado aguardando resposta da API Whisper.');
+    this.name = 'WhisperTimeoutError';
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class WhisperService {
   private recorder: MediaRecorder | null = null;
@@ -43,6 +57,7 @@ export class WhisperService {
    * Injeta as top palavras do vocabulário do usuário no campo `prompt`.
    */
   async transcrever(duracaoMs = DURACAO_PADRAO_MS): Promise<SttResultado> {
+    if (!navigator.onLine) throw new WhisperSemInternetError();
     await this.iniciarGravacao();
     await this.aguardar(duracaoMs);
     return this.pararETranscrever();
@@ -109,11 +124,26 @@ export class WhisperService {
     form.append('response_format', 'json');
     if (promptVocab) form.append('prompt', promptVocab);
 
-    const resp = await fetch(GROQ_URL, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${environment.groqApiKey}` },
-      body: form,
-    });
+    const controller = new AbortController();
+    const fetchTimeout = setTimeout(() => controller.abort(), 30_000);
+
+    let resp: Response;
+    try {
+      resp = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${environment.groqApiKey}` },
+        body: form,
+        signal: controller.signal,
+      });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        throw new WhisperTimeoutError();
+      }
+      if (!navigator.onLine) throw new WhisperSemInternetError();
+      throw e;
+    } finally {
+      clearTimeout(fetchTimeout);
+    }
 
     if (!resp.ok) {
       const err = await resp.text();

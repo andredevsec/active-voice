@@ -21,6 +21,13 @@ export class SttIndisponivelError extends Error {
   }
 }
 
+export class SttTimeoutError extends Error {
+  constructor() {
+    super('Tempo esgotado aguardando resposta do microfone.');
+    this.name = 'SttTimeoutError';
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class SttService {
   constructor(private storage: StorageService) {}
@@ -51,12 +58,18 @@ export class SttService {
 
     const prefs = this.storage.getPreferencias();
 
-    const { matches } = await SpeechRecognition.start({
+    const reconhecimento = SpeechRecognition.start({
       language: prefs.idioma,
       maxResults: 3,
       partialResults: false,
       popup: false,
     });
+
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new SttTimeoutError()), 12_000),
+    );
+
+    const { matches } = await Promise.race([reconhecimento, timeout]);
 
     const resultado = this.avaliarMatches(matches, prefs.confiancaMinima);
 

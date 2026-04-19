@@ -298,20 +298,27 @@ export class HomePage implements OnInit, OnDestroy {
   }
 
   private falarErro(e: unknown): void {
-    if (e instanceof Error) {
-      if (e.name === 'SttIndisponivelError') {
-        this.tts.falar('Permissão de microfone negada. Verifique as configurações do aplicativo.');
-        return;
-      }
-      if (e.name === 'WhisperApiError') {
-        this.tts.falar('Sem conexão com a internet. Tente novamente mais tarde.');
-        return;
-      }
-      if (e.name === 'WhisperSemAudioError') {
-        this.tts.falar('Nenhum áudio foi capturado. Tente falar mais alto e mais perto do microfone.');
-        return;
-      }
+    if (!(e instanceof Error)) {
+      this.tts.falar('Ocorreu um erro inesperado. Por favor, tente novamente.');
+      return;
     }
-    this.tts.falar('Ocorreu um erro inesperado. Por favor, tente novamente.');
+
+    const mensagens: Record<string, string> = {
+      SttTimeoutError:
+        'O microfone não respondeu a tempo. Toque novamente para tentar.',
+      SttIndisponivelError:
+        'Permissão de microfone negada. Abra as configurações e permita o acesso ao microfone.',
+      WhisperSemInternetError:
+        'Sem conexão com a internet. Verifique o Wi-Fi e tente novamente.',
+      WhisperTimeoutError:
+        'O servidor demorou demais para responder. Tente novamente em instantes.',
+      WhisperApiError:
+        'Erro ao processar o áudio. Tente novamente ou fale mais devagar.',
+      WhisperSemAudioError:
+        'Nenhum áudio foi capturado. Fale mais alto e mais perto do microfone.',
+    };
+
+    const mensagem = mensagens[e.name];
+    this.tts.falar(mensagem ?? 'Ocorreu um erro inesperado. Por favor, tente novamente.');
   }
 }
